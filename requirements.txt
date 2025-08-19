@@ -1,0 +1,8 @@
+pyspark
+dvc
+mlflow
+pandas
+scikit-learn
+flask
+uvicorn
+findspark
