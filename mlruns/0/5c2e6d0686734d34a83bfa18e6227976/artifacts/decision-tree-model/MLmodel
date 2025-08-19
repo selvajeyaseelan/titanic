@@ -1,0 +1,21 @@
+artifact_path: decision-tree-model
+flavors:
+  python_function:
+    data: sparkml
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.spark
+    python_version: 3.12.3
+  spark:
+    code: null
+    model_class: pyspark.ml.pipeline.PipelineModel
+    model_data: sparkml
+    pyspark_version: 3.5.3
+mlflow_version: 3.3.0
+model_id: null
+model_size_bytes: 5872
+model_uuid: 8b8fc45472084fd4891a7ce6ff1721d6
+prompts: null
+run_id: 5c2e6d0686734d34a83bfa18e6227976
+utc_time_created: '2025-08-19 19:12:50.440519'

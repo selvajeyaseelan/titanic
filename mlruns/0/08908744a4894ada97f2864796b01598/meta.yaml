@@ -1,0 +1,14 @@
+artifact_uri: file:///home/selva/workspace/titanic/mlruns/0/08908744a4894ada97f2864796b01598/artifacts
+end_time: 1755630605442
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 08908744a4894ada97f2864796b01598
+run_name: youthful-goat-171
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1755630588408
+status: 3
+tags: []
+user_id: selva

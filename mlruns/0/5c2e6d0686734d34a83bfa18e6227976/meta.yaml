@@ -1,0 +1,14 @@
+artifact_uri: file:///home/selva/workspace/titanic/mlruns/0/5c2e6d0686734d34a83bfa18e6227976/artifacts
+end_time: 1755630783475
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 5c2e6d0686734d34a83bfa18e6227976
+run_name: mercurial-smelt-2
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1755630763925
+status: 3
+tags: []
+user_id: selva

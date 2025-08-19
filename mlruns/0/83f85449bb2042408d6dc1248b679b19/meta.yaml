@@ -1,0 +1,14 @@
+artifact_uri: file:///home/selva/workspace/titanic/mlruns/0/83f85449bb2042408d6dc1248b679b19/artifacts
+end_time: 1755630413254
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 83f85449bb2042408d6dc1248b679b19
+run_name: indecisive-foal-979
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1755630405710
+status: 4
+tags: []
+user_id: selva
