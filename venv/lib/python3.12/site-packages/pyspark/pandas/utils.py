@@ -37,14 +37,13 @@ from typing import (
 )
 import warnings
 
-from pyspark.sql import functions as F, Column, DataFrame as PySparkDataFrame, SparkSession
-from pyspark.sql.types import DoubleType
-from pyspark.sql.utils import is_remote, get_dataframe_class
-from pyspark.errors import PySparkTypeError
 import pandas as pd
 from pandas.api.types import is_list_like  # type: ignore[attr-defined]
 
-# For running doctests and reference resolution in PyCharm.
+from pyspark.sql import functions as F, Column, DataFrame as PySparkDataFrame, SparkSession
+from pyspark.sql.types import DoubleType
+from pyspark.sql.utils import is_remote
+from pyspark.errors import PySparkTypeError, UnsupportedOperationException
 from pyspark import pandas as ps  # noqa: F401
 from pyspark.pandas._typing import (
     Axis,
@@ -477,7 +476,7 @@ def is_testing() -> bool:
     return "SPARK_TESTING" in os.environ
 
 
-def default_session() -> SparkSession:
+def default_session(*, check_ansi_mode: bool = True) -> SparkSession:
     spark = SparkSession.getActiveSession()
     if spark is None:
         spark = SparkSession.builder.appName("pandas-on-Spark").getOrCreate()
@@ -486,13 +485,21 @@ def default_session() -> SparkSession:
     # the behavior of pandas API on Spark follows pandas, not SQL.
     if is_testing():
         spark.conf.set("spark.sql.ansi.enabled", False)
-    if spark.conf.get("spark.sql.ansi.enabled") == "true":
-        log_advice(
-            "The config 'spark.sql.ansi.enabled' is set to True. "
-            "This can cause unexpected behavior "
-            "from pandas API on Spark since pandas API on Spark follows "
-            "the behavior of pandas, not SQL."
-        )
+
+    if check_ansi_mode:
+        if spark.conf.get("spark.sql.ansi.enabled") == "true":
+            if ps.get_option("compute.fail_on_ansi_mode"):
+                raise UnsupportedOperationException(
+                    errorClass="PANDAS_API_ON_SPARK_FAIL_ON_ANSI_MODE",
+                    messageParameters={},
+                )
+            else:
+                log_advice(
+                    "The config 'spark.sql.ansi.enabled' is set to True. "
+                    "This can cause unexpected behavior "
+                    "from pandas API on Spark since pandas API on Spark follows "
+                    "the behavior of pandas, not SQL."
+                )
 
     return spark
 
@@ -609,7 +616,10 @@ def lazy_property(fn: Callable[[Any], Any]) -> property:
 
 def scol_for(sdf: PySparkDataFrame, column_name: str) -> Column:
     """Return Spark Column for the given column name."""
-    return sdf["`{}`".format(column_name)]
+    if is_remote():
+        return sdf._col("`{}`".format(column_name))  # type: ignore[operator]
+    else:
+        return sdf["`{}`".format(column_name)]
 
 
 def column_labels_level(column_labels: List[Label]) -> int:
@@ -913,8 +923,7 @@ def verify_temp_column_name(
         )
         column_name = column_name_or_label
 
-    SparkDataFrame = get_dataframe_class()
-    assert isinstance(df, SparkDataFrame), type(df)
+    assert isinstance(df, PySparkDataFrame), type(df)
     assert (
         column_name not in df.columns
     ), "The given column name `{}` already exists in the Spark DataFrame: {}".format(
@@ -946,16 +955,28 @@ def spark_column_equals(left: Column, right: Column) -> bool:
 
         if not isinstance(left, ConnectColumn):
             raise PySparkTypeError(
-                error_class="NOT_COLUMN",
-                message_parameters={"arg_name": "left", "arg_type": type(left).__name__},
+                errorClass="NOT_COLUMN",
+                messageParameters={"arg_name": "left", "arg_type": type(left).__name__},
             )
         if not isinstance(right, ConnectColumn):
             raise PySparkTypeError(
-                error_class="NOT_COLUMN",
-                message_parameters={"arg_name": "right", "arg_type": type(right).__name__},
+                errorClass="NOT_COLUMN",
+                messageParameters={"arg_name": "right", "arg_type": type(right).__name__},
             )
-        return repr(left) == repr(right)
+        return repr(left).replace("`", "") == repr(right).replace("`", "")
     else:
+        from pyspark.sql.classic.column import Column as ClassicColumn
+
+        if not isinstance(left, ClassicColumn):
+            raise PySparkTypeError(
+                errorClass="NOT_COLUMN",
+                messageParameters={"arg_name": "left", "arg_type": type(left).__name__},
+            )
+        if not isinstance(right, ClassicColumn):
+            raise PySparkTypeError(
+                errorClass="NOT_COLUMN",
+                messageParameters={"arg_name": "right", "arg_type": type(right).__name__},
+            )
         return left._jc.equals(right._jc)
 
 
@@ -1032,6 +1053,23 @@ def validate_index_loc(index: "Index", loc: int) -> None:
             raise IndexError(
                 "index {} is out of bounds for axis 0 with size {}".format(loc, length)
             )
+
+
+def xor(df1: PySparkDataFrame, df2: PySparkDataFrame) -> PySparkDataFrame:
+    colNames = df1.columns
+
+    tmp_tag_col = verify_temp_column_name(df1, "__temporary_tag__")
+    tmp_max_col = verify_temp_column_name(df1, "__temporary_max_tag__")
+    tmp_min_col = verify_temp_column_name(df1, "__temporary_min_tag__")
+
+    return (
+        df1.withColumn(tmp_tag_col, F.lit(0))
+        .union(df2.withColumn(tmp_tag_col, F.lit(1)))
+        .groupBy(*colNames)
+        .agg(F.min(tmp_tag_col).alias(tmp_min_col), F.max(tmp_tag_col).alias(tmp_max_col))
+        .where(F.col(tmp_min_col) == F.col(tmp_max_col))
+        .select(*colNames)
+    )
 
 
 def _test() -> None:

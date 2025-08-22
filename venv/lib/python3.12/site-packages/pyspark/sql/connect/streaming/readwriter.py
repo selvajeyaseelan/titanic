@@ -14,12 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 from pyspark.sql.connect.utils import check_dependencies
 
 check_dependencies(__name__)
 
+import json
 import sys
+import pickle
 from typing import cast, overload, Callable, Dict, List, Optional, TYPE_CHECKING, Union
 
 from pyspark.serializers import CloudPickleSerializer
@@ -31,17 +32,16 @@ from pyspark.sql.streaming.readwriter import (
     DataStreamReader as PySparkDataStreamReader,
     DataStreamWriter as PySparkDataStreamWriter,
 )
+from pyspark.sql.streaming.listener import QueryStartedEvent
 from pyspark.sql.connect.utils import get_python_ver
 from pyspark.sql.types import Row, StructType
-from pyspark.errors import PySparkTypeError, PySparkValueError
+from pyspark.errors import PySparkTypeError, PySparkValueError, PySparkPicklingError
 
 if TYPE_CHECKING:
     from pyspark.sql.connect.session import SparkSession
     from pyspark.sql.connect._typing import OptionalPrimitiveType
     from pyspark.sql.connect.dataframe import DataFrame
     from pyspark.sql._typing import SupportsProcess
-
-__all__ = ["DataStreamReader", "DataStreamWriter"]
 
 
 class DataStreamReader(OptionUtils):
@@ -54,7 +54,7 @@ class DataStreamReader(OptionUtils):
     def _df(self, plan: LogicalPlan) -> "DataFrame":
         from pyspark.sql.connect.dataframe import DataFrame
 
-        return DataFrame.withPlan(plan, self._client)
+        return DataFrame(plan, self._client)
 
     def format(self, source: str) -> "DataStreamReader":
         self._format = source
@@ -69,8 +69,8 @@ class DataStreamReader(OptionUtils):
             self._schema = schema
         else:
             raise PySparkTypeError(
-                error_class="NOT_STR_OR_STRUCT",
-                message_parameters={"arg_name": "schema", "arg_type": type(schema).__name__},
+                errorClass="NOT_STR_OR_STRUCT",
+                messageParameters={"arg_name": "schema", "arg_type": type(schema).__name__},
             )
         return self
 
@@ -103,8 +103,8 @@ class DataStreamReader(OptionUtils):
         self.options(**options)
         if path is not None and (type(path) != str or len(path.strip()) == 0):
             raise PySparkValueError(
-                error_class="VALUE_NOT_NON_EMPTY_STR",
-                message_parameters={"arg_name": "path", "arg_value": str(path)},
+                errorClass="VALUE_NOT_NON_EMPTY_STR",
+                messageParameters={"arg_name": "path", "arg_value": str(path)},
             )
 
         plan = DataSource(
@@ -143,6 +143,7 @@ class DataStreamReader(OptionUtils):
         pathGlobFilter: Optional[Union[bool, str]] = None,
         recursiveFileLookup: Optional[Union[bool, str]] = None,
         allowNonNumericNumbers: Optional[Union[bool, str]] = None,
+        useUnsafeRow: Optional[Union[bool, str]] = None,
     ) -> "DataFrame":
         self._set_opts(
             schema=schema,
@@ -166,13 +167,14 @@ class DataStreamReader(OptionUtils):
             pathGlobFilter=pathGlobFilter,
             recursiveFileLookup=recursiveFileLookup,
             allowNonNumericNumbers=allowNonNumericNumbers,
+            useUnsafeRow=useUnsafeRow,
         )
         if isinstance(path, str):
             return self.load(path=path, format="json")
         else:
             raise PySparkTypeError(
-                error_class="NOT_STR",
-                message_parameters={"arg_name": "path", "arg_type": type(path).__name__},
+                errorClass="NOT_STR",
+                messageParameters={"arg_name": "path", "arg_type": type(path).__name__},
             )
 
     json.__doc__ = PySparkDataStreamReader.json.__doc__
@@ -193,8 +195,8 @@ class DataStreamReader(OptionUtils):
             return self.load(path=path, format="orc")
         else:
             raise PySparkTypeError(
-                error_class="NOT_STR",
-                message_parameters={"arg_name": "path", "arg_type": type(path).__name__},
+                errorClass="NOT_STR",
+                messageParameters={"arg_name": "path", "arg_type": type(path).__name__},
             )
 
     orc.__doc__ = PySparkDataStreamReader.orc.__doc__
@@ -226,8 +228,8 @@ class DataStreamReader(OptionUtils):
             return self.load(path=path, format="parquet")
         else:
             raise PySparkTypeError(
-                error_class="NOT_STR",
-                message_parameters={"arg_name": "path", "arg_type": type(path).__name__},
+                errorClass="NOT_STR",
+                messageParameters={"arg_name": "path", "arg_type": type(path).__name__},
             )
 
     parquet.__doc__ = PySparkDataStreamReader.parquet.__doc__
@@ -250,8 +252,8 @@ class DataStreamReader(OptionUtils):
             return self.load(path=path, format="text")
         else:
             raise PySparkTypeError(
-                error_class="NOT_STR",
-                message_parameters={"arg_name": "path", "arg_type": type(path).__name__},
+                errorClass="NOT_STR",
+                messageParameters={"arg_name": "path", "arg_type": type(path).__name__},
             )
 
     text.__doc__ = PySparkDataStreamReader.text.__doc__
@@ -326,11 +328,65 @@ class DataStreamReader(OptionUtils):
             return self.load(path=path, format="csv")
         else:
             raise PySparkTypeError(
-                error_class="NOT_STR",
-                message_parameters={"arg_name": "path", "arg_type": type(path).__name__},
+                errorClass="NOT_STR",
+                messageParameters={"arg_name": "path", "arg_type": type(path).__name__},
             )
 
     csv.__doc__ = PySparkDataStreamReader.csv.__doc__
+
+    def xml(
+        self,
+        path: str,
+        rowTag: Optional[str] = None,
+        schema: Optional[Union[StructType, str]] = None,
+        excludeAttribute: Optional[Union[bool, str]] = None,
+        attributePrefix: Optional[str] = None,
+        valueTag: Optional[str] = None,
+        ignoreSurroundingSpaces: Optional[Union[bool, str]] = None,
+        rowValidationXSDPath: Optional[str] = None,
+        ignoreNamespace: Optional[Union[bool, str]] = None,
+        wildcardColName: Optional[str] = None,
+        encoding: Optional[str] = None,
+        inferSchema: Optional[Union[bool, str]] = None,
+        nullValue: Optional[str] = None,
+        dateFormat: Optional[str] = None,
+        timestampFormat: Optional[str] = None,
+        mode: Optional[str] = None,
+        columnNameOfCorruptRecord: Optional[str] = None,
+        multiLine: Optional[Union[bool, str]] = None,
+        samplingRatio: Optional[Union[float, str]] = None,
+        locale: Optional[str] = None,
+    ) -> "DataFrame":
+        self._set_opts(
+            rowTag=rowTag,
+            schema=schema,
+            excludeAttribute=excludeAttribute,
+            attributePrefix=attributePrefix,
+            valueTag=valueTag,
+            ignoreSurroundingSpaces=ignoreSurroundingSpaces,
+            rowValidationXSDPath=rowValidationXSDPath,
+            ignoreNamespace=ignoreNamespace,
+            wildcardColName=wildcardColName,
+            encoding=encoding,
+            inferSchema=inferSchema,
+            nullValue=nullValue,
+            dateFormat=dateFormat,
+            timestampFormat=timestampFormat,
+            mode=mode,
+            columnNameOfCorruptRecord=columnNameOfCorruptRecord,
+            multiLine=multiLine,
+            samplingRatio=samplingRatio,
+            locale=locale,
+        )
+        if isinstance(path, str):
+            return self.load(path=path, format="xml")
+        else:
+            raise PySparkTypeError(
+                errorClass="NOT_STR",
+                messageParameters={"arg_name": "path", "arg_type": type(path).__name__},
+            )
+
+    xml.__doc__ = PySparkDataStreamReader.xml.__doc__
 
     def table(self, tableName: str) -> "DataFrame":
         return self._df(Read(tableName, self._options, is_streaming=True))
@@ -391,7 +447,31 @@ class DataStreamWriter:
 
     partitionBy.__doc__ = PySparkDataStreamWriter.partitionBy.__doc__
 
+    @overload
+    def clusterBy(self, *cols: str) -> "DataStreamWriter":
+        ...
+
+    @overload
+    def clusterBy(self, __cols: List[str]) -> "DataStreamWriter":
+        ...
+
+    def clusterBy(self, *cols: str) -> "DataStreamWriter":  # type: ignore[misc]
+        if len(cols) == 1 and isinstance(cols[0], (list, tuple)):
+            cols = cols[0]
+        # Clear any existing columns (if any).
+        while len(self._write_proto.clustering_column_names) > 0:
+            self._write_proto.clustering_column_names.pop()
+        self._write_proto.clustering_column_names.extend(cast(List[str], cols))
+        return self
+
+    clusterBy.__doc__ = PySparkDataStreamWriter.clusterBy.__doc__
+
     def queryName(self, queryName: str) -> "DataStreamWriter":
+        if not queryName or type(queryName) != str or len(queryName.strip()) == 0:
+            raise PySparkValueError(
+                errorClass="VALUE_NOT_NON_EMPTY_STR",
+                messageParameters={"arg_name": "queryName", "arg_value": str(queryName)},
+            )
         self._write_proto.query_name = queryName
         return self
 
@@ -425,20 +505,20 @@ class DataStreamWriter:
 
         if params.count(None) == 4:
             raise PySparkValueError(
-                error_class="ONLY_ALLOW_SINGLE_TRIGGER",
-                message_parameters={},
+                errorClass="ONLY_ALLOW_SINGLE_TRIGGER",
+                messageParameters={},
             )
         elif params.count(None) < 3:
             raise PySparkValueError(
-                error_class="ONLY_ALLOW_SINGLE_TRIGGER",
-                message_parameters={},
+                errorClass="ONLY_ALLOW_SINGLE_TRIGGER",
+                messageParameters={},
             )
 
         if processingTime is not None:
             if type(processingTime) != str or len(processingTime.strip()) == 0:
                 raise PySparkValueError(
-                    error_class="VALUE_NOT_NON_EMPTY_STR",
-                    message_parameters={
+                    errorClass="VALUE_NOT_NON_EMPTY_STR",
+                    messageParameters={
                         "arg_name": "processingTime",
                         "arg_value": str(processingTime),
                     },
@@ -448,24 +528,24 @@ class DataStreamWriter:
         elif once is not None:
             if once is not True:
                 raise PySparkValueError(
-                    error_class="VALUE_NOT_TRUE",
-                    message_parameters={"arg_name": "once", "arg_value": str(once)},
+                    errorClass="VALUE_NOT_TRUE",
+                    messageParameters={"arg_name": "once", "arg_value": str(once)},
                 )
             self._write_proto.once = True
 
         elif continuous is not None:
             if type(continuous) != str or len(continuous.strip()) == 0:
                 raise PySparkValueError(
-                    error_class="VALUE_NOT_NON_EMPTY_STR",
-                    message_parameters={"arg_name": "continuous", "arg_value": str(continuous)},
+                    errorClass="VALUE_NOT_NON_EMPTY_STR",
+                    messageParameters={"arg_name": "continuous", "arg_value": str(continuous)},
                 )
             self._write_proto.continuous_checkpoint_interval = continuous.strip()
 
         else:
             if availableNow is not True:
                 raise PySparkValueError(
-                    error_class="VALUE_NOT_TRUE",
-                    message_parameters={"arg_name": "availableNow", "arg_value": str(availableNow)},
+                    errorClass="VALUE_NOT_TRUE",
+                    messageParameters={"arg_name": "availableNow", "arg_value": str(availableNow)},
                 )
             self._write_proto.available_now = True
 
@@ -488,18 +568,30 @@ class DataStreamWriter:
         serializer = AutoBatchedSerializer(CPickleSerializer())
         command = (func, None, serializer, serializer)
         # Python ForeachWriter isn't really a PythonUDF. But we reuse it for simplicity.
-        self._write_proto.foreach_writer.python_function.command = CloudPickleSerializer().dumps(
-            command
-        )
+        try:
+            self._write_proto.foreach_writer.python_function.command = (
+                CloudPickleSerializer().dumps(command)
+            )
+        except pickle.PicklingError:
+            raise PySparkPicklingError(
+                errorClass="STREAMING_CONNECT_SERIALIZATION_ERROR",
+                messageParameters={"name": "foreach"},
+            )
         self._write_proto.foreach_writer.python_function.python_ver = "%d.%d" % sys.version_info[:2]
         return self
 
     foreach.__doc__ = PySparkDataStreamWriter.foreach.__doc__
 
     def foreachBatch(self, func: Callable[["DataFrame", int], None]) -> "DataStreamWriter":
-        self._write_proto.foreach_batch.python_function.command = CloudPickleSerializer().dumps(
-            func
-        )
+        try:
+            self._write_proto.foreach_batch.python_function.command = CloudPickleSerializer().dumps(
+                func
+            )
+        except pickle.PicklingError:
+            raise PySparkPicklingError(
+                errorClass="STREAMING_CONNECT_SERIALIZATION_ERROR",
+                messageParameters={"name": "foreachBatch"},
+            )
         self._write_proto.foreach_batch.python_function.python_ver = get_python_ver()
         return self
 
@@ -530,17 +622,27 @@ class DataStreamWriter:
             self._write_proto.table_name = tableName
 
         cmd = self._write_stream.command(self._session.client)
-        (_, properties) = self._session.client.execute_command(cmd)
+        (_, properties, _) = self._session.client.execute_command(cmd)
 
         start_result = cast(
             pb2.WriteStreamOperationStartResult, properties["write_stream_operation_start_result"]
         )
-        return StreamingQuery(
+        query = StreamingQuery(
             session=self._session,
             queryId=start_result.query_id.id,
             runId=start_result.query_id.run_id,
-            name=start_result.name,
+            # A Streaming Query cannot have empty string as name
+            # Spark throws error in that case, so this cast is safe
+            name=start_result.name if start_result.name != "" else None,
         )
+
+        if start_result.HasField("query_started_event_json"):
+            start_event = QueryStartedEvent.fromJson(
+                json.loads(start_result.query_started_event_json)
+            )
+            self._session.streams._sqlb.post_to_all(start_event)
+
+        return query
 
     def start(
         self,
@@ -550,7 +652,7 @@ class DataStreamWriter:
         partitionBy: Optional[Union[str, List[str]]] = None,
         queryName: Optional[str] = None,
         **options: "OptionalPrimitiveType",
-    ) -> StreamingQuery:
+    ) -> "StreamingQuery":
         return self._start_internal(
             path=path,
             tableName=None,
@@ -571,7 +673,7 @@ class DataStreamWriter:
         partitionBy: Optional[Union[str, List[str]]] = None,
         queryName: Optional[str] = None,
         **options: "OptionalPrimitiveType",
-    ) -> StreamingQuery:
+    ) -> "StreamingQuery":
         return self._start_internal(
             path=None,
             tableName=tableName,

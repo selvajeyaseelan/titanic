@@ -1,0 +1,14 @@
+artifact_uri: file:///home/selva/workspace/titanic/mlruns/0/76967ee0731546b1bd670258ad3e42c2/artifacts
+end_time: 1755845915991
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 76967ee0731546b1bd670258ad3e42c2
+run_name: upbeat-frog-522
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1755845900658
+status: 3
+tags: []
+user_id: selva

@@ -1,0 +1,14 @@
+artifact_uri: file:///home/selva/workspace/titanic/mlruns/0/389ede03178f4da884014aadaf07a367/artifacts
+end_time: 1755854933885
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 389ede03178f4da884014aadaf07a367
+run_name: rogue-yak-591
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1755854861981
+status: 3
+tags: []
+user_id: selva

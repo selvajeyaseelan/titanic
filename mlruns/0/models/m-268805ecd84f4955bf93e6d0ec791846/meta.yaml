@@ -1,0 +1,10 @@
+artifact_location: file:///home/selva/workspace/titanic/mlruns/0/models/m-268805ecd84f4955bf93e6d0ec791846/artifacts
+creation_timestamp: 1755877753062
+experiment_id: '0'
+last_updated_timestamp: 1755877755451
+model_id: m-268805ecd84f4955bf93e6d0ec791846
+model_type: null
+name: model
+source_run_id: 7414b3e40e3045f3bb1376b838ef7a9a
+status: 2
+status_message: null

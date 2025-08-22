@@ -1,0 +1,14 @@
+artifact_uri: file:///home/selva/workspace/titanic/mlruns/0/951a47da93254a0f9ff7ea5f96b7b464/artifacts
+end_time: 1755854230070
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 951a47da93254a0f9ff7ea5f96b7b464
+run_name: languid-quail-309
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1755854169357
+status: 3
+tags: []
+user_id: selva

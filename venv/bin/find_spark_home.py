@@ -1,4 +1,4 @@
-#!/home/selva/workspace/titanic/venv/bin/python3.12
+#!/home/selva/workspace/titanic/venv/bin/python3
 
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more

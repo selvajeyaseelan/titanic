@@ -19,37 +19,26 @@
 A wrapper for ResampledData to behave like pandas Resampler.
 """
 from abc import ABCMeta, abstractmethod
-from distutils.version import LooseVersion
 from functools import partial
 from typing import (
     Any,
     Generic,
     List,
     Optional,
-    Union,
 )
 
 import numpy as np
-
 import pandas as pd
 from pandas.tseries.frequencies import to_offset
 
-if LooseVersion(pd.__version__) >= LooseVersion("1.3.0"):
-    from pandas.core.common import _builtin_table  # type: ignore[attr-defined]
-else:
-    from pandas.core.base import SelectionMixin
-
-    _builtin_table = SelectionMixin._builtin_table  # type: ignore[attr-defined]
-
-from pyspark import SparkContext
 from pyspark.sql import Column, functions as F
+from pyspark.sql.internal import InternalFunction as SF
 from pyspark.sql.types import (
     NumericType,
     StructField,
     TimestampNTZType,
     DataType,
 )
-
 from pyspark import pandas as ps  # For running doctests and reference resolution in PyCharm.
 from pyspark.pandas._typing import FrameLike
 from pyspark.pandas.frame import DataFrame
@@ -67,8 +56,6 @@ from pyspark.pandas.utils import (
     scol_for,
     verify_temp_column_name,
 )
-from pyspark.sql.utils import is_remote
-from pyspark.pandas.spark.functions import timestampdiff
 
 
 class Resampler(Generic[FrameLike], metaclass=ABCMeta):
@@ -103,20 +90,21 @@ class Resampler(Generic[FrameLike], metaclass=ABCMeta):
         self._resamplekey = resamplekey
 
         self._offset = to_offset(rule)
-        if self._offset.rule_code not in ["A-DEC", "M", "D", "H", "T", "S"]:
+
+        if self._offset.rule_code not in ["A-DEC", "M", "ME", "D", "H", "h", "T", "min", "S", "s"]:
             raise ValueError("rule code {} is not supported".format(self._offset.rule_code))
         if not getattr(self._offset, "n") > 0:
             raise ValueError("rule offset must be positive")
 
         if closed is None:
-            self._closed = "right" if self._offset.rule_code in ["A-DEC", "M"] else "left"
+            self._closed = "right" if self._offset.rule_code in ["A-DEC", "M", "ME"] else "left"
         elif closed in ["left", "right"]:
             self._closed = closed
         else:
             raise ValueError("invalid closed: '{}'".format(closed))
 
         if label is None:
-            self._label = "right" if self._offset.rule_code in ["A-DEC", "M"] else "left"
+            self._label = "right" if self._offset.rule_code in ["A-DEC", "M", "ME"] else "left"
         elif label in ["left", "right"]:
             self._label = label
         else:
@@ -141,26 +129,6 @@ class Resampler(Generic[FrameLike], metaclass=ABCMeta):
     @property
     def _agg_columns_scols(self) -> List[Column]:
         return [s.spark.column for s in self._agg_columns]
-
-    def get_make_interval(  # type: ignore[return]
-        self, unit: str, col: Union[Column, int, float]
-    ) -> Column:
-        if is_remote():
-            from pyspark.sql.connect.functions import lit, make_interval
-
-            col = col if not isinstance(col, (int, float)) else lit(col)  # type: ignore[assignment]
-            if unit == "MONTH":
-                return make_interval(months=col)  # type: ignore
-            if unit == "HOUR":
-                return make_interval(hours=col)  # type: ignore
-            if unit == "MINUTE":
-                return make_interval(mins=col)  # type: ignore
-            if unit == "SECOND":
-                return make_interval(secs=col)  # type: ignore
-        else:
-            sql_utils = SparkContext._active_spark_context._jvm.PythonSQLUtils
-            col = col._jc if isinstance(col, Column) else F.lit(col)._jc
-            return sql_utils.makeInterval(unit, col)
 
     def _bin_timestamp(self, origin: pd.Timestamp, ts_scol: Column) -> Column:
         key_type = self._resamplekey_type
@@ -203,7 +171,7 @@ class Resampler(Generic[FrameLike], metaclass=ABCMeta):
                 )
             )
 
-        elif rule_code == "M":
+        elif rule_code in ["ME", "M"]:
             assert (
                 origin.is_month_end
                 and origin.hour == 0
@@ -222,18 +190,18 @@ class Resampler(Generic[FrameLike], metaclass=ABCMeta):
             truncated_ts_scol = F.date_trunc("MONTH", ts_scol)
             edge_label = truncated_ts_scol
             if left_closed and right_labeled:
-                edge_label += self.get_make_interval("MONTH", n)
+                edge_label += SF.make_interval("MONTH", n)
             elif right_closed and left_labeled:
-                edge_label -= self.get_make_interval("MONTH", n)
+                edge_label -= SF.make_interval("MONTH", n)
 
             if left_labeled:
                 non_edge_label = F.when(
                     mod == 0,
-                    truncated_ts_scol - self.get_make_interval("MONTH", n),
-                ).otherwise(truncated_ts_scol - self.get_make_interval("MONTH", mod))
+                    truncated_ts_scol - SF.make_interval("MONTH", n),
+                ).otherwise(truncated_ts_scol - SF.make_interval("MONTH", mod))
             else:
                 non_edge_label = F.when(mod == 0, truncated_ts_scol).otherwise(
-                    truncated_ts_scol - self.get_make_interval("MONTH", mod - n)
+                    truncated_ts_scol - SF.make_interval("MONTH", mod - n)
                 )
 
             ret = F.to_timestamp(
@@ -283,20 +251,27 @@ class Resampler(Generic[FrameLike], metaclass=ABCMeta):
 
                 ret = F.when(edge_cond, edge_label).otherwise(non_edge_label)
 
-        elif rule_code in ["H", "T", "S"]:
-            unit_mapping = {"H": "HOUR", "T": "MINUTE", "S": "SECOND"}
+        elif rule_code in ["h", "min", "s", "H", "T", "S"]:
+            unit_mapping = {
+                "h": "HOUR",
+                "min": "MINUTE",
+                "s": "SECOND",
+                "H": "HOUR",
+                "T": "MINUTE",
+                "S": "SECOND",
+            }
             unit_str = unit_mapping[rule_code]
 
             truncated_ts_scol = F.date_trunc(unit_str, ts_scol)
             if isinstance(key_type, TimestampNTZType):
                 truncated_ts_scol = F.to_timestamp_ntz(truncated_ts_scol)
-            diff = timestampdiff(unit_str, origin_scol, truncated_ts_scol)
+            diff = F.timestamp_diff(unit_str, origin_scol, truncated_ts_scol)
             mod = F.lit(0) if n == 1 else (diff % F.lit(n))
 
-            if rule_code == "H":
+            if rule_code in ["h", "H"]:
                 assert origin.minute == 0 and origin.second == 0
                 edge_cond = (mod == 0) & (F.minute(ts_scol) == 0) & (F.second(ts_scol) == 0)
-            elif rule_code == "T":
+            elif rule_code in ["min", "T"]:
                 assert origin.second == 0
                 edge_cond = (mod == 0) & (F.second(ts_scol) == 0)
             else:
@@ -304,19 +279,19 @@ class Resampler(Generic[FrameLike], metaclass=ABCMeta):
 
             edge_label = truncated_ts_scol
             if left_closed and right_labeled:
-                edge_label += self.get_make_interval(unit_str, n)
+                edge_label += SF.make_interval(unit_str, n)
             elif right_closed and left_labeled:
-                edge_label -= self.get_make_interval(unit_str, n)
+                edge_label -= SF.make_interval(unit_str, n)
 
             if left_labeled:
                 non_edge_label = F.when(mod == 0, truncated_ts_scol).otherwise(
-                    truncated_ts_scol - self.get_make_interval(unit_str, mod)
+                    truncated_ts_scol - SF.make_interval(unit_str, mod)
                 )
             else:
                 non_edge_label = F.when(
                     mod == 0,
-                    truncated_ts_scol + self.get_make_interval(unit_str, n),
-                ).otherwise(truncated_ts_scol - self.get_make_interval(unit_str, mod - n))
+                    truncated_ts_scol + SF.make_interval(unit_str, n),
+                ).otherwise(truncated_ts_scol - SF.make_interval(unit_str, mod - n))
 
             ret = F.when(edge_cond, edge_label).otherwise(non_edge_label)
 

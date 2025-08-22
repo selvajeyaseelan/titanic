@@ -23,7 +23,6 @@ import json
 from typing import Any, Callable, Dict, Iterator, List, Tuple, Union
 
 from pyspark._globals import _NoValue, _NoValueType
-
 from pyspark.pandas.utils import default_session
 
 
@@ -113,7 +112,7 @@ class Option:
 #
 # NOTE: if you are fixing or adding an option here, make sure you execute `show_options()` and
 #     copy & paste the results into show_options
-#     'docs/source/user_guide/pandas_on_spark/options.rst' as well.
+#     'python/docs/source/tutorial/pandas_on_spark/options.rst' as well.
 #     See the examples below:
 #     >>> from pyspark.pandas.config import show_options
 #     >>> show_options()
@@ -170,7 +169,7 @@ _options: List[Option] = [
             "can be expensive in general. So, if `compute.ops_on_diff_frames` variable is not "
             "True, that method throws an exception."
         ),
-        default=False,
+        default=True,
         types=bool,
     ),
     Option(
@@ -261,6 +260,26 @@ _options: List[Option] = [
         ),
     ),
     Option(
+        key="compute.pandas_fallback",
+        doc=(
+            "'compute.pandas_fallback' sets whether or not to fallback automatically "
+            "to Pandas' implementation."
+        ),
+        default=False,
+        types=bool,
+    ),
+    Option(
+        key="compute.fail_on_ansi_mode",
+        doc=(
+            "'compute.fail_on_ansi_mode' sets whether or not work with ANSI mode. "
+            "If True, pandas API on Spark raises an exception if the underlying Spark is "
+            "working with ANSI mode enabled; otherwise, it forces to work although it can "
+            "cause unexpected behavior."
+        ),
+        default=True,
+        types=bool,
+    ),
+    Option(
         key="plotting.max_rows",
         doc=(
             "'plotting.max_rows' sets the visual limit on top-n-based plots such as `plot.bar` "
@@ -279,7 +298,8 @@ _options: List[Option] = [
         doc=(
             "'plotting.sample_ratio' sets the proportion of data that will be plotted for sample-"
             "based plots such as `plot.line` and `plot.area`. "
-            "This option defaults to 'plotting.max_rows' option."
+            "If not set, it is derived from 'plotting.max_rows', by calculating the ratio of "
+            "'plotting.max_rows' to the total data size."
         ),
         default=None,
         types=(float, type(None)),
@@ -365,7 +385,7 @@ def get_option(key: str, default: Union[Any, _NoValueType] = _NoValue) -> Any:
     if default is _NoValue:
         default = _options_dict[key].default
     _options_dict[key].validate(default)
-    spark_session = default_session()
+    spark_session = default_session(check_ansi_mode=False)
 
     return json.loads(spark_session.conf.get(_key_format(key), default=json.dumps(default)))
 
@@ -387,7 +407,7 @@ def set_option(key: str, value: Any) -> None:
     """
     _check_option(key)
     _options_dict[key].validate(value)
-    spark_session = default_session()
+    spark_session = default_session(check_ansi_mode=False)
 
     spark_session.conf.set(_key_format(key), json.dumps(value))
 
@@ -408,7 +428,7 @@ def reset_option(key: str) -> None:
     None
     """
     _check_option(key)
-    default_session().conf.unset(_key_format(key))
+    default_session(check_ansi_mode=False).conf.unset(_key_format(key))
 
 
 @contextmanager

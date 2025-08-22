@@ -1,0 +1,22 @@
+artifact_path: file:///home/selva/workspace/titanic/mlruns/0/models/m-268805ecd84f4955bf93e6d0ec791846/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.12.3
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.7.1
+mlflow_version: 3.3.1
+model_id: m-268805ecd84f4955bf93e6d0ec791846
+model_size_bytes: 435
+model_uuid: m-268805ecd84f4955bf93e6d0ec791846
+prompts: null
+run_id: 7414b3e40e3045f3bb1376b838ef7a9a
+utc_time_created: '2025-08-22 15:49:13.067376'

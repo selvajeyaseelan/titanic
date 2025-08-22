@@ -27,8 +27,8 @@ from typing import Dict, Optional, TYPE_CHECKING
 
 from pyspark.sql.protobuf import functions as PyProtobufFunctions
 
-from pyspark.sql.connect.column import Column
-from pyspark.sql.connect.functions import _invoke_function, _to_col, _options_to_col, lit
+from pyspark.sql.column import Column
+from pyspark.sql.connect.functions.builtin import _invoke_function, _to_col, _options_to_col, lit
 
 if TYPE_CHECKING:
     from pyspark.sql.connect._typing import ColumnOrName
@@ -120,7 +120,7 @@ def _read_descriptor_set_file(filePath: str) -> bytes:
 def _test() -> None:
     import os
     import sys
-    from pyspark.testing.utils import search_jar
+    from pyspark.testing.sqlutils import search_jar
 
     protobuf_jar = search_jar("connector/protobuf", "spark-protobuf-assembly-", "spark-protobuf")
     if protobuf_jar is None:
@@ -141,9 +141,8 @@ def _test() -> None:
     import pyspark.sql.connect.protobuf.functions
 
     globs = pyspark.sql.connect.protobuf.functions.__dict__.copy()
-
     globs["spark"] = (
-        PySparkSession.builder.appName("sql.protobuf.functions tests")
+        PySparkSession.builder.appName("sql.connect.protobuf.functions tests")
         .remote(os.environ.get("SPARK_CONNECT_TESTING_REMOTE", "local[2]"))
         .getOrCreate()
     )

@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from typing import Any, Union, List, Tuple
+
 import numpy as np
 import pandas as pd
-from typing import Any, Union, List, Tuple
 
 from pyspark import keyword_only
 from pyspark.ml.param import Param, Params, TypeConverters
@@ -28,7 +29,6 @@ from pyspark.sql import DataFrame
 
 
 class _TorchMetricEvaluator(Evaluator):
-
     metricName: Param[str] = Param(
         Params._dummy(),
         "metricName",
@@ -41,6 +41,8 @@ class _TorchMetricEvaluator(Evaluator):
         Gets the value of metricName or its default value.
 
         .. versionadded:: 3.5.0
+
+        .. deprecated:: 4.0.0
         """
         return self.getOrDefault(self.metricName)
 
@@ -93,6 +95,8 @@ class RegressionEvaluator(_TorchMetricEvaluator, HasLabelCol, HasPredictionCol, 
     Supported metrics are 'rmse', 'mse' and 'r2'.
 
     .. versionadded:: 3.5.0
+
+    .. deprecated:: 4.0.0
 
     Examples
     --------
@@ -160,6 +164,8 @@ class BinaryClassificationEvaluator(
     Supported metrics are 'areaUnderROC' and 'areaUnderPR'.
 
     .. versionadded:: 3.5.0
+
+    .. deprecated:: 4.0.0
 
     Examples
     --------
@@ -232,6 +238,8 @@ class MulticlassClassificationEvaluator(
     Supported metrics are 'accuracy'.
 
     .. versionadded:: 3.5.0
+
+    .. deprecated:: 4.0.0
 
     Examples
     --------

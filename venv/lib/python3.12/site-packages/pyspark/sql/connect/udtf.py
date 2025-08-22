@@ -22,19 +22,20 @@ from pyspark.sql.connect.utils import check_dependencies
 check_dependencies(__name__)
 
 import warnings
-from typing import Type, TYPE_CHECKING, Optional, Union
+from typing import List, Type, TYPE_CHECKING, Optional, Union
 
-from pyspark.rdd import PythonEvalType
+from pyspark.util import PythonEvalType
 from pyspark.sql.connect.column import Column
-from pyspark.sql.connect.expressions import ColumnReference
+from pyspark.sql.connect.expressions import ColumnReference, Expression, NamedArgumentExpression
 from pyspark.sql.connect.plan import (
     CommonInlineUserDefinedTableFunction,
     PythonUDTF,
 )
+from pyspark.sql.connect.table_arg import TableArg
 from pyspark.sql.connect.types import UnparsedDataType
 from pyspark.sql.connect.utils import get_python_ver
-from pyspark.sql.udtf import UDTFRegistration as PySparkUDTFRegistration
-from pyspark.sql.udtf import _validate_udtf_handler
+from pyspark.sql.udtf import AnalyzeArgument, AnalyzeResult  # noqa: F401
+from pyspark.sql.udtf import UDTFRegistration as PySparkUDTFRegistration, _validate_udtf_handler
 from pyspark.sql.types import DataType, StructType
 from pyspark.errors import PySparkRuntimeError, PySparkTypeError
 
@@ -47,7 +48,7 @@ if TYPE_CHECKING:
 
 def _create_udtf(
     cls: Type,
-    returnType: Union[StructType, str],
+    returnType: Optional[Union[StructType, str]],
     name: Optional[str] = None,
     evalType: int = PythonEvalType.SQL_TABLE_UDF,
     deterministic: bool = False,
@@ -60,7 +61,7 @@ def _create_udtf(
 
 def _create_py_udtf(
     cls: Type,
-    returnType: Union[StructType, str],
+    returnType: Optional[Union[StructType, str]],
     name: Optional[str] = None,
     deterministic: bool = False,
     useArrow: Optional[bool] = None,
@@ -78,7 +79,7 @@ def _create_py_udtf(
                 == "true"
             )
         except PySparkRuntimeError as e:
-            if e.error_class == "NO_ACTIVE_OR_DEFAULT_SESSION":
+            if e.getCondition() == "NO_ACTIVE_OR_DEFAULT_SESSION":
                 pass  # Just uses the default if no session found.
             else:
                 raise e
@@ -118,28 +119,39 @@ class UserDefinedTableFunction:
     def __init__(
         self,
         func: Type,
-        returnType: Union[StructType, str],
+        returnType: Optional[Union[StructType, str]],
         name: Optional[str] = None,
         evalType: int = PythonEvalType.SQL_TABLE_UDF,
         deterministic: bool = False,
     ) -> None:
-        _validate_udtf_handler(func)
+        _validate_udtf_handler(func, returnType)
 
         self.func = func
-        self.returnType: DataType = (
-            UnparsedDataType(returnType) if isinstance(returnType, str) else returnType
+        self.returnType: Optional[DataType] = (
+            None
+            if returnType is None
+            else UnparsedDataType(returnType)
+            if isinstance(returnType, str)
+            else returnType
         )
         self._name = name or func.__name__
         self.evalType = evalType
         self.deterministic = deterministic
 
     def _build_common_inline_user_defined_table_function(
-        self, *cols: "ColumnOrName"
+        self, *args: "ColumnOrName", **kwargs: "ColumnOrName"
     ) -> CommonInlineUserDefinedTableFunction:
-        arg_cols = [
-            col if isinstance(col, Column) else Column(ColumnReference(col)) for col in cols
+        def to_expr(col: "ColumnOrName") -> Expression:
+            if isinstance(col, Column):
+                return col._expr
+            elif isinstance(col, TableArg):
+                return col._subquery_expr
+            else:
+                return ColumnReference(col)  # type: ignore[arg-type]
+
+        arg_exprs: List[Expression] = [to_expr(arg) for arg in args] + [
+            NamedArgumentExpression(key, to_expr(value)) for key, value in kwargs.items()
         ]
-        arg_exprs = [col._expr for col in arg_cols]
 
         udtf = PythonUDTF(
             func=self.func,
@@ -154,14 +166,14 @@ class UserDefinedTableFunction:
             arguments=arg_exprs,
         )
 
-    def __call__(self, *cols: "ColumnOrName") -> "DataFrame":
+    def __call__(self, *args: "ColumnOrName", **kwargs: "ColumnOrName") -> "DataFrame":
         from pyspark.sql.connect.session import SparkSession
         from pyspark.sql.connect.dataframe import DataFrame
 
         session = SparkSession.active()
 
-        plan = self._build_common_inline_user_defined_table_function(*cols)
-        return DataFrame.withPlan(plan, session)
+        plan = self._build_common_inline_user_defined_table_function(*args, **kwargs)
+        return DataFrame(plan, session)
 
     def asDeterministic(self) -> "UserDefinedTableFunction":
         self.deterministic = True
@@ -183,10 +195,18 @@ class UDTFRegistration:
         name: str,
         f: "UserDefinedTableFunction",
     ) -> "UserDefinedTableFunction":
+        if not isinstance(f, UserDefinedTableFunction):
+            raise PySparkTypeError(
+                errorClass="CANNOT_REGISTER_UDTF",
+                messageParameters={
+                    "name": name,
+                },
+            )
+
         if f.evalType not in [PythonEvalType.SQL_TABLE_UDF, PythonEvalType.SQL_ARROW_TABLE_UDF]:
             raise PySparkTypeError(
-                error_class="INVALID_UDTF_EVAL_TYPE",
-                message_parameters={
+                errorClass="INVALID_UDTF_EVAL_TYPE",
+                messageParameters={
                     "name": name,
                     "eval_type": "SQL_TABLE_UDF, SQL_ARROW_TABLE_UDF",
                 },

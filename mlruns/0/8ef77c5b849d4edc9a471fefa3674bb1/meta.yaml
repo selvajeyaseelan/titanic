@@ -1,0 +1,14 @@
+artifact_uri: file:///home/selva/workspace/titanic/mlruns/0/8ef77c5b849d4edc9a471fefa3674bb1/artifacts
+end_time: 1755847187127
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 8ef77c5b849d4edc9a471fefa3674bb1
+run_name: thoughtful-roo-639
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1755847172010
+status: 3
+tags: []
+user_id: selva

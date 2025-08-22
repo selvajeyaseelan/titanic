@@ -1,0 +1,14 @@
+artifact_uri: file:///home/selva/workspace/titanic/mlruns/0/ffcbf8e3e3d3419ca84f2591cce9cae0/artifacts
+end_time: 1755846290727
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: ffcbf8e3e3d3419ca84f2591cce9cae0
+run_name: rumbling-boar-915
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1755846278675
+status: 3
+tags: []
+user_id: selva

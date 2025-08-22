@@ -1,0 +1,14 @@
+artifact_uri: file:///home/selva/workspace/titanic/mlruns/0/073eecc6bc0a4a749a43e731ed6a9cf0/artifacts
+end_time: 1755853072671
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 073eecc6bc0a4a749a43e731ed6a9cf0
+run_name: lyrical-wren-836
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1755853072627
+status: 4
+tags: []
+user_id: selva

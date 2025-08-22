@@ -1,6 +1,2 @@
-/train.csv
-/test.csv
-/config.local
-/tmp
-/cache
+# .gitignore
 data/*.csv

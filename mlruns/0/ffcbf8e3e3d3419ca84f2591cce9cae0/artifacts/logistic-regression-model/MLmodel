@@ -1,0 +1,21 @@
+artifact_path: logistic-regression-model
+flavors:
+  python_function:
+    data: sparkml
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.spark
+    python_version: 3.12.3
+  spark:
+    code: null
+    model_class: pyspark.ml.pipeline.PipelineModel
+    model_data: sparkml
+    pyspark_version: 3.5.3
+mlflow_version: 3.3.0
+model_id: null
+model_size_bytes: 5517
+model_uuid: 010233841852484087c7092bd4802ae6
+prompts: null
+run_id: ffcbf8e3e3d3419ca84f2591cce9cae0
+utc_time_created: '2025-08-22 07:04:42.070461'
