@@ -1,0 +1,6 @@
+/train.csv
+/test.csv
+/config.local
+/tmp
+/cache
+data/*.csv
