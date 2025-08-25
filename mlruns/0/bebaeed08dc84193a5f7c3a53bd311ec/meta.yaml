@@ -1,0 +1,14 @@
+artifact_uri: file:///home/selva/workspace/titanic/mlruns/0/bebaeed08dc84193a5f7c3a53bd311ec/artifacts
+end_time: 1755885014737
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: bebaeed08dc84193a5f7c3a53bd311ec
+run_name: Training_logistic_regression
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1755884967897
+status: 3
+tags: []
+user_id: selva

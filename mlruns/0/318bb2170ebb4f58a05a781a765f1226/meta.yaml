@@ -1,0 +1,14 @@
+artifact_uri: file:///home/selva/workspace/titanic/mlruns/0/318bb2170ebb4f58a05a781a765f1226/artifacts
+end_time: 1755885069271
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 318bb2170ebb4f58a05a781a765f1226
+run_name: Final_Best_Model
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1755885058404
+status: 3
+tags: []
+user_id: selva
